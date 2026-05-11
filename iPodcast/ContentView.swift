@@ -40,6 +40,41 @@ struct ContentView: View {
 
             Divider()
 
+            List {
+                ForEach(manager.podcastShows) { show in
+                    Section(show.name) {
+                        ForEach(show.files) { file in
+                            Button {
+                                manager.togglePlayed(show: show, file: file)
+                            } label: {
+                                HStack {
+                                    Image(
+                                        systemName: file.played
+                                            ? "checkmark.circle.fill" : "circle"
+                                    )
+                                    .foregroundStyle(file.played ? .green : .secondary)
+                                    Text(file.filename)
+                                        .font(.system(size: 12, design: .monospaced))
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .overlay {
+                if manager.podcastShows.isEmpty {
+                    ContentUnavailableView(
+                        "No Podcasts",
+                        systemImage: "headphones",
+                        description: Text("Sync to download episodes")
+                    )
+                }
+            }
+
+            Divider()
+
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 1) {
@@ -54,6 +89,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)
                 }
+                .frame(height: 150)
                 .onChange(of: manager.logMessages.count) {
                     if let last = manager.logMessages.last {
                         withAnimation {
@@ -63,7 +99,10 @@ struct ContentView: View {
                 }
             }
         }
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(minWidth: 600, minHeight: 500)
+        .onAppear {
+            manager.scanPodcastFiles()
+        }
     }
 }
 

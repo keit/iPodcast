@@ -8,6 +8,18 @@ struct Episode {
     let pubDate: String
 }
 
+struct PodcastFile: Identifiable {
+    var id: String { filename }
+    let filename: String
+    let played: Bool
+}
+
+struct PodcastShow: Identifiable {
+    var id: String { name }
+    let name: String
+    let files: [PodcastFile]
+}
+
 struct LogEntry: Identifiable {
     let id = UUID()
     let message: String
@@ -18,6 +30,7 @@ struct LogEntry: Identifiable {
 @Observable
 final class PodcastManager {
     var logMessages: [LogEntry] = []
+    var podcastShows: [PodcastShow] = []
     var isSyncing = false
     var isCleaning = false
 
@@ -67,6 +80,7 @@ final class PodcastManager {
         }
 
         log("Done.")
+        scanPodcastFiles()
     }
 
     private func syncFeed(appleURL: String) async {
@@ -226,6 +240,80 @@ final class PodcastManager {
         } catch {
             log("ERROR: \(error.localizedDescription)", isError: true)
         }
+        scanPodcastFiles()
+    }
+
+    // MARK: - File Scanning
+
+    func scanPodcastFiles() {
+        let fm = FileManager.default
+        guard let showDirs = try? fm.contentsOfDirectory(atPath: podcastsDirectory) else {
+            podcastShows = []
+            return
+        }
+
+        let played = loadPlayedFilenames()
+        var result: [PodcastShow] = []
+        for show in showDirs.sorted() {
+            let showPath = (podcastsDirectory as NSString).appendingPathComponent(show)
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: showPath, isDirectory: &isDir), isDir.boolValue else {
+                continue
+            }
+            guard let files = try? fm.contentsOfDirectory(atPath: showPath) else { continue }
+            let audioFiles = files.filter { !$0.hasPrefix(".") }.sorted().map { filename in
+                PodcastFile(filename: filename, played: played.contains(filename))
+            }
+            if !audioFiles.isEmpty {
+                result.append(PodcastShow(name: show, files: audioFiles))
+            }
+        }
+
+        podcastShows = result
+    }
+
+    func togglePlayed(show: PodcastShow, file: PodcastFile) {
+        if file.played {
+            removeFromPlaybackLog(filename: file.filename)
+        } else {
+            let path = "/Podcasts/\(show.name)/\(file.filename)"
+            appendToPlaybackLog(path: path)
+        }
+        scanPodcastFiles()
+    }
+
+    private func appendToPlaybackLog(path: String) {
+        let logPath = (iPodMountPoint as NSString)
+            .appendingPathComponent(".rockbox/playback.log")
+        let timestamp = Int(Date().timeIntervalSince1970)
+        let line = "\(timestamp):1000:1000:\(path)\n"
+        if let handle = FileHandle(forWritingAtPath: logPath) {
+            handle.seekToEndOfFile()
+            handle.write(line.data(using: .utf8)!)
+            handle.closeFile()
+        } else {
+            try? line.write(
+                to: URL(fileURLWithPath: logPath), atomically: true, encoding: .utf8)
+        }
+    }
+
+    private func removeFromPlaybackLog(filename: String) {
+        let logPath = (iPodMountPoint as NSString)
+            .appendingPathComponent(".rockbox/playback.log")
+        guard let content = try? String(
+            contentsOf: URL(fileURLWithPath: logPath), encoding: .utf8)
+        else { return }
+
+        let filtered = content.components(separatedBy: .newlines).filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") { return true }
+            let parts = trimmed.split(separator: ":", maxSplits: 3)
+            guard parts.count == 4 else { return true }
+            return (String(parts[3]) as NSString).lastPathComponent != filename
+        }
+
+        try? filtered.joined(separator: "\n")
+            .write(to: URL(fileURLWithPath: logPath), atomically: true, encoding: .utf8)
     }
 
     // MARK: - Utilities
