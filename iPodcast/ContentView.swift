@@ -31,6 +31,11 @@ struct ContentView: View {
                 }
                 .disabled(manager.isBusy)
 
+                Button("Eject iPod") {
+                    manager.ejectIPod()
+                }
+                .disabled(manager.isBusy)
+
                 if manager.isBusy {
                     ProgressView()
                         .controlSize(.small)

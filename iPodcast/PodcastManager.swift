@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -241,6 +242,19 @@ final class PodcastManager {
             log("ERROR: \(error.localizedDescription)", isError: true)
         }
         scanPodcastFiles()
+    }
+
+    // MARK: - Eject
+
+    func ejectIPod() {
+        let url = URL(fileURLWithPath: iPodMountPoint)
+        do {
+            try NSWorkspace.shared.unmountAndEjectDevice(at: url)
+            log("Ejected \(iPodMountPoint)")
+            podcastShows = []
+        } catch {
+            log("ERROR ejecting: \(error.localizedDescription)", isError: true)
+        }
     }
 
     // MARK: - File Scanning
