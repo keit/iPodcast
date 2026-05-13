@@ -18,6 +18,7 @@ struct PodcastFile: Identifiable {
 struct PodcastShow: Identifiable {
     var id: String { name }
     let name: String
+    let artworkURL: URL?
     let files: [PodcastFile]
 }
 
@@ -49,6 +50,8 @@ final class PodcastManager {
     var feeds: [String] {
         didSet { UserDefaults.standard.set(feeds, forKey: Self.feedsKey) }
     }
+
+    private var artworkByShowName: [String: URL] = [:]
 
     private static let feedsKey = "feeds"
 
@@ -327,11 +330,27 @@ final class PodcastManager {
                 PodcastFile(filename: filename, played: played.contains(filename))
             }
             if !audioFiles.isEmpty {
-                result.append(PodcastShow(name: show, files: audioFiles))
+                result.append(
+                    PodcastShow(
+                        name: show,
+                        artworkURL: artworkByShowName[show],
+                        files: audioFiles))
             }
         }
 
         podcastShows = result
+    }
+
+    func loadFeedMetadata() async {
+        var map: [String: URL] = [:]
+        for feed in feeds {
+            guard let info = try? await fetchFeedInfo(appleURL: feed),
+                let url = info.artworkURL
+            else { continue }
+            map[Self.sanitizeFilename(info.collectionName)] = url
+        }
+        artworkByShowName = map
+        scanPodcastFiles()
     }
 
     func togglePlayed(show: PodcastShow, file: PodcastFile) {

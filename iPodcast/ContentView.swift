@@ -74,7 +74,7 @@ struct ContentView: View {
             GroupBox("Podcasts") {
                 List {
                     ForEach(manager.podcastShows) { show in
-                        Section(show.name) {
+                        Section {
                             ForEach(show.files) { file in
                                 Button {
                                     manager.togglePlayed(show: show, file: file)
@@ -91,6 +91,25 @@ struct ContentView: View {
                                     }
                                 }
                                 .buttonStyle(.plain)
+                            }
+                        } header: {
+                            HStack(spacing: 8) {
+                                AsyncImage(url: show.artworkURL) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image.resizable()
+                                    case .failure:
+                                        Image(systemName: "photo")
+                                            .foregroundStyle(.secondary)
+                                    case .empty:
+                                        Color.gray.opacity(0.2)
+                                    @unknown default:
+                                        Color.gray.opacity(0.2)
+                                    }
+                                }
+                                .frame(width: 24, height: 24)
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                                Text(show.name)
                             }
                         }
                     }
@@ -139,6 +158,9 @@ struct ContentView: View {
         .preferredColorScheme(.light)
         .onAppear {
             manager.scanPodcastFiles()
+        }
+        .task {
+            await manager.loadFeedMetadata()
         }
         .sheet(isPresented: $showingManageFeeds) {
             ManageFeedsView(manager: manager)
