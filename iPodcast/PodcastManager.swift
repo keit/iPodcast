@@ -21,6 +21,14 @@ struct PodcastShow: Identifiable {
     let files: [PodcastFile]
 }
 
+struct FeedInfo: Identifiable {
+    var id: String { appleURL }
+    let appleURL: String
+    let collectionName: String
+    let primaryGenreName: String
+    let artworkURL: URL?
+}
+
 struct LogEntry: Identifiable {
     let id = UUID()
     let message: String
@@ -38,13 +46,13 @@ final class PodcastManager {
     var iPodMountPoint = "/Volumes/IPOD"
     var episodeLimit = 5
 
-    private var podcastsDirectory: String {
-        (iPodMountPoint as NSString).appendingPathComponent("Podcasts")
+    var feeds: [String] {
+        didSet { UserDefaults.standard.set(feeds, forKey: Self.feedsKey) }
     }
 
-    var isBusy: Bool { isSyncing || isCleaning }
+    private static let feedsKey = "feeds"
 
-    static let feeds = [
+    static let defaultFeeds = [
         "https://podcasts.apple.com/us/podcast/the-10-minute-jazz-lesson-podcast/id1087454803",
         "https://podcasts.apple.com/jp/podcast/backspace-fm/id830709730",
         "https://podcasts.apple.com/us/podcast/not-news/id1809874971",
@@ -53,6 +61,20 @@ final class PodcastManager {
         "https://podcasts.apple.com/nz/podcast/podcast-by-yuka-studio-ユカスタポッドキャスト/id1665465325",
         "https://podcasts.apple.com/nz/podcast/al-jazeera-news-updates/id1412845697",
     ]
+
+    private var podcastsDirectory: String {
+        (iPodMountPoint as NSString).appendingPathComponent("Podcasts")
+    }
+
+    var isBusy: Bool { isSyncing || isCleaning }
+
+    init() {
+        if let saved = UserDefaults.standard.stringArray(forKey: Self.feedsKey), !saved.isEmpty {
+            self.feeds = saved
+        } else {
+            self.feeds = Self.defaultFeeds
+        }
+    }
 
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
@@ -76,7 +98,7 @@ final class PodcastManager {
         try? FileManager.default.createDirectory(
             atPath: podcastsDirectory, withIntermediateDirectories: true)
 
-        for appleURL in Self.feeds {
+        for appleURL in feeds {
             await syncFeed(appleURL: appleURL)
         }
 
@@ -164,6 +186,32 @@ final class PodcastManager {
         let trackName = first["trackName"] as? String ?? "podcast-\(podcastID)"
 
         return (trackName, feedURL)
+    }
+
+    // MARK: - Feed Info
+
+    func fetchFeedInfo(appleURL: String) async throws -> FeedInfo {
+        guard let range = appleURL.range(of: #"/id(\d+)"#, options: .regularExpression) else {
+            throw PodcastError.invalidURL(appleURL)
+        }
+        let podcastID = String(appleURL[range].dropFirst(3))
+
+        let url = URL(string: "https://itunes.apple.com/lookup?id=\(podcastID)&entity=podcast")!
+        let (data, _) = try await session.data(from: url)
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let results = json["results"] as? [[String: Any]],
+            let first = results.first
+        else {
+            throw PodcastError.feedResolutionFailed(appleURL)
+        }
+
+        return FeedInfo(
+            appleURL: appleURL,
+            collectionName: first["collectionName"] as? String ?? "",
+            primaryGenreName: first["primaryGenreName"] as? String ?? "",
+            artworkURL: (first["artworkUrl100"] as? String).flatMap(URL.init(string:))
+        )
     }
 
     // MARK: - RSS

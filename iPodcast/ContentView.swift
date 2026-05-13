@@ -23,6 +23,7 @@ struct PanelGroupBoxStyle: GroupBoxStyle {
 
 struct ContentView: View {
     @State private var manager = PodcastManager()
+    @State private var showingManageFeeds = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -54,6 +55,11 @@ struct ContentView: View {
 
                     Button("Eject iPod") {
                         manager.ejectIPod()
+                    }
+                    .disabled(manager.isBusy)
+
+                    Button("Manage Feeds") {
+                        showingManageFeeds = true
                     }
                     .disabled(manager.isBusy)
 
@@ -133,6 +139,9 @@ struct ContentView: View {
         .preferredColorScheme(.light)
         .onAppear {
             manager.scanPodcastFiles()
+        }
+        .sheet(isPresented: $showingManageFeeds) {
+            ManageFeedsView(manager: manager)
         }
     }
 }
