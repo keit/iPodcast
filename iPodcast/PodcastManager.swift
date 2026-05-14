@@ -2,7 +2,8 @@ import AppKit
 import Foundation
 import Observation
 
-struct Episode {
+struct Episode: Identifiable {
+    var id: String { filename }
     let title: String
     let audioURL: URL
     let filename: String
@@ -19,6 +20,7 @@ struct PodcastShow: Identifiable {
     var id: String { name }
     let name: String
     let artworkURL: URL?
+    let appleURL: String?
     let files: [PodcastFile]
 }
 
@@ -51,7 +53,7 @@ final class PodcastManager {
         didSet { UserDefaults.standard.set(feeds, forKey: Self.feedsKey) }
     }
 
-    private var artworkByShowName: [String: URL] = [:]
+    private var feedInfoByShowName: [String: FeedInfo] = [:]
 
     private static let feedsKey = "feeds"
 
@@ -240,9 +242,28 @@ final class PodcastManager {
         try FileManager.default.moveItem(at: tempURL, to: destination)
     }
 
+    func fetchEpisodes(appleURL: String) async throws -> [Episode] {
+        let (_, feedURL) = try await resolveFeed(appleURL: appleURL)
+        return try await fetchAndParseEpisodes(feedURL: feedURL)
+    }
+
+    func downloadEpisode(_ episode: Episode, showName: String) async throws {
+        let showDir = (podcastsDirectory as NSString).appendingPathComponent(showName)
+        try FileManager.default.createDirectory(
+            atPath: showDir, withIntermediateDirectories: true)
+        let destPath = (showDir as NSString).appendingPathComponent(episode.filename)
+        do {
+            try await downloadFile(
+                from: episode.audioURL, to: URL(fileURLWithPath: destPath))
+        } catch {
+            try? FileManager.default.removeItem(atPath: destPath)
+            throw error
+        }
+    }
+
     // MARK: - Played Filenames
 
-    private func loadPlayedFilenames() -> Set<String> {
+    func loadPlayedFilenames() -> Set<String> {
         let logPath = (iPodMountPoint as NSString)
             .appendingPathComponent(".rockbox/playback.log")
         guard let content = try? String(
@@ -338,10 +359,12 @@ final class PodcastManager {
                 PodcastFile(filename: filename, played: played.contains(filename))
             }
             if !audioFiles.isEmpty {
+                let info = feedInfoByShowName[show]
                 result.append(
                     PodcastShow(
                         name: show,
-                        artworkURL: artworkByShowName[show],
+                        artworkURL: info?.artworkURL,
+                        appleURL: info?.appleURL,
                         files: audioFiles))
             }
         }
@@ -350,14 +373,12 @@ final class PodcastManager {
     }
 
     func loadFeedMetadata() async {
-        var map: [String: URL] = [:]
+        var map: [String: FeedInfo] = [:]
         for feed in feeds {
-            guard let info = try? await fetchFeedInfo(appleURL: feed),
-                let url = info.artworkURL
-            else { continue }
-            map[Self.sanitizeFilename(info.collectionName)] = url
+            guard let info = try? await fetchFeedInfo(appleURL: feed) else { continue }
+            map[Self.sanitizeFilename(info.collectionName)] = info
         }
-        artworkByShowName = map
+        feedInfoByShowName = map
         scanPodcastFiles()
     }
 

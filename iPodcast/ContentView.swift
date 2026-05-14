@@ -24,6 +24,7 @@ struct PanelGroupBoxStyle: GroupBoxStyle {
 struct ContentView: View {
     @State private var manager = PodcastManager()
     @State private var showingManageFeeds = false
+    @State private var showingMoreFor: PodcastShow?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -110,6 +111,20 @@ struct ContentView: View {
                                 .frame(width: 24, height: 24)
                                 .clipShape(RoundedRectangle(cornerRadius: 3))
                                 Text(show.name)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if show.appleURL != nil {
+                                    Button {
+                                        showingMoreFor = show
+                                    } label: {
+                                        Text("More…")
+                                            .font(.headline)
+                                            .fontWeight(.regular)
+                                            .foregroundStyle(.primary)
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
                             }
                         }
                     }
@@ -164,6 +179,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingManageFeeds) {
             ManageFeedsView(manager: manager)
+        }
+        .sheet(item: $showingMoreFor) { show in
+            ShowEpisodesView(manager: manager, show: show)
         }
     }
 }
