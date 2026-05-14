@@ -8,6 +8,7 @@ struct ManageFeedsView: View {
     @State private var loadingErrors: [String: String] = [:]
     @State private var isLoading = false
     @State private var selection: Set<String> = []
+    @State private var showingAddSheet = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -82,12 +83,13 @@ struct ManageFeedsView: View {
             .onExitCommand { selection.removeAll() }
 
             HStack(spacing: 4) {
-                Button { } label: {
+                Button {
+                    showingAddSheet = true
+                } label: {
                     Image(systemName: "plus")
                         .frame(width: 20, height: 20)
                 }
-                .disabled(true)
-                .help("Add feed (coming soon)")
+                .help("Add feed")
 
                 Button {
                     remove(selection)
@@ -107,6 +109,28 @@ struct ManageFeedsView: View {
         .frame(minWidth: 500, minHeight: 400)
         .task {
             await loadAll()
+        }
+        .sheet(isPresented: $showingAddSheet) {
+            AddFeedSheet { url in
+                addFeed(url)
+            }
+        }
+    }
+
+    private func addFeed(_ url: String) {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !manager.feeds.contains(trimmed) else { return }
+
+        manager.setFeeds(manager.feeds + [trimmed], undoManager: undoManager)
+        undoManager?.setActionName("Add Feed")
+
+        Task {
+            do {
+                let info = try await manager.fetchFeedInfo(appleURL: trimmed)
+                feedInfos[trimmed] = info
+            } catch {
+                loadingErrors[trimmed] = error.localizedDescription
+            }
         }
     }
 
@@ -131,3 +155,40 @@ struct ManageFeedsView: View {
         }
     }
 }
+
+struct AddFeedSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var url = ""
+    let onAdd: (String) -> Void
+
+    private var isValid: Bool {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.range(of: #"/id\d+"#, options: .regularExpression) != nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Add Feed")
+                .font(.headline)
+            Text("Paste an Apple Podcasts URL (must contain /idXXXX).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("https://podcasts.apple.com/…", text: $url)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Add") {
+                    onAdd(url)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!isValid)
+            }
+        }
+        .padding()
+        .frame(width: 420)
+    }
+}
+
