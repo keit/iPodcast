@@ -79,6 +79,14 @@ final class PodcastManager {
         }
     }
 
+    func setFeeds(_ newFeeds: [String], undoManager: UndoManager?) {
+        let previous = feeds
+        feeds = newFeeds
+        undoManager?.registerUndo(withTarget: self) { target in
+            target.setFeeds(previous, undoManager: undoManager)
+        }
+    }
+
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.httpAdditionalHeaders = ["User-Agent": "podcast-downloader/1.0"]

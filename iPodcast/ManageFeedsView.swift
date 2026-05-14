@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ManageFeedsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.undoManager) private var undoManager
     let manager: PodcastManager
     @State private var feedInfos: [String: FeedInfo] = [:]
     @State private var loadingErrors: [String: String] = [:]
@@ -109,14 +110,12 @@ struct ManageFeedsView: View {
         }
     }
 
-    private func remove(_ feeds: Set<String>) {
-        guard !feeds.isEmpty else { return }
-        manager.feeds.removeAll { feeds.contains($0) }
-        for feed in feeds {
-            feedInfos.removeValue(forKey: feed)
-            loadingErrors.removeValue(forKey: feed)
-        }
-        selection.subtract(feeds)
+    private func remove(_ feedsToRemove: Set<String>) {
+        guard !feedsToRemove.isEmpty else { return }
+        let newFeeds = manager.feeds.filter { !feedsToRemove.contains($0) }
+        manager.setFeeds(newFeeds, undoManager: undoManager)
+        selection.subtract(feedsToRemove)
+        undoManager?.setActionName(feedsToRemove.count == 1 ? "Remove Feed" : "Remove Feeds")
     }
 
     private func loadAll() async {
