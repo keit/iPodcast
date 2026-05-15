@@ -76,22 +76,29 @@ struct ContentView: View {
                 List {
                     ForEach(manager.podcastShows) { show in
                         Section {
-                            ForEach(show.files) { file in
-                                Button {
-                                    manager.togglePlayed(show: show, file: file)
-                                } label: {
-                                    HStack {
-                                        Image(
-                                            systemName: file.played
-                                                ? "checkmark.circle.fill" : "circle"
-                                        )
-                                        .foregroundStyle(file.played ? .green : .secondary)
-                                        Text(file.filename)
-                                            .font(.system(size: 12, design: .monospaced))
-                                            .foregroundStyle(.primary)
+                            if show.files.isEmpty {
+                                Text("No episodes")
+                                    .font(.system(size: 12))
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(show.files) { file in
+                                    Button {
+                                        manager.togglePlayed(show: show, file: file)
+                                    } label: {
+                                        HStack {
+                                            Image(
+                                                systemName: file.played
+                                                    ? "checkmark.circle.fill" : "circle"
+                                            )
+                                            .foregroundStyle(file.played ? .green : .secondary)
+                                            Text(file.filename)
+                                                .font(.system(size: 12, design: .monospaced))
+                                                .foregroundStyle(.primary)
+                                        }
                                     }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
                         } header: {
                             HStack(spacing: 8) {

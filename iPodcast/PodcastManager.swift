@@ -341,32 +341,38 @@ final class PodcastManager {
 
     func scanPodcastFiles() {
         let fm = FileManager.default
-        guard let showDirs = try? fm.contentsOfDirectory(atPath: podcastsDirectory) else {
-            podcastShows = []
-            return
+        let played = loadPlayedFilenames()
+
+        // Union of subscribed feeds and directories actually present on disk.
+        var showNames = Set(feedInfoByShowName.keys)
+        if let dirs = try? fm.contentsOfDirectory(atPath: podcastsDirectory) {
+            for dir in dirs {
+                let path = (podcastsDirectory as NSString).appendingPathComponent(dir)
+                var isDir: ObjCBool = false
+                if fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
+                    showNames.insert(dir)
+                }
+            }
         }
 
-        let played = loadPlayedFilenames()
         var result: [PodcastShow] = []
-        for show in showDirs.sorted() {
+        for show in showNames.sorted() {
             let showPath = (podcastsDirectory as NSString).appendingPathComponent(show)
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: showPath, isDirectory: &isDir), isDir.boolValue else {
-                continue
+            let audioFiles: [PodcastFile]
+            if let files = try? fm.contentsOfDirectory(atPath: showPath) {
+                audioFiles = files.filter { !$0.hasPrefix(".") }.sorted().map { filename in
+                    PodcastFile(filename: filename, played: played.contains(filename))
+                }
+            } else {
+                audioFiles = []
             }
-            guard let files = try? fm.contentsOfDirectory(atPath: showPath) else { continue }
-            let audioFiles = files.filter { !$0.hasPrefix(".") }.sorted().map { filename in
-                PodcastFile(filename: filename, played: played.contains(filename))
-            }
-            if !audioFiles.isEmpty {
-                let info = feedInfoByShowName[show]
-                result.append(
-                    PodcastShow(
-                        name: show,
-                        artworkURL: info?.artworkURL,
-                        appleURL: info?.appleURL,
-                        files: audioFiles))
-            }
+            let info = feedInfoByShowName[show]
+            result.append(
+                PodcastShow(
+                    name: show,
+                    artworkURL: info?.artworkURL,
+                    appleURL: info?.appleURL,
+                    files: audioFiles))
         }
 
         podcastShows = result
