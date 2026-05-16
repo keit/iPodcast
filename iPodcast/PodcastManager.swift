@@ -337,6 +337,36 @@ final class PodcastManager {
         }
     }
 
+    // MARK: - Unsubscribe
+
+    func unsubscribeShow(_ show: PodcastShow) {
+        let showDir = (podcastsDirectory as NSString).appendingPathComponent(show.name)
+        let url = URL(fileURLWithPath: showDir)
+        let fm = FileManager.default
+
+        if fm.fileExists(atPath: showDir) {
+            do {
+                try fm.trashItem(at: url, resultingItemURL: nil)
+            } catch {
+                // External volumes (e.g., FAT-formatted iPods) don't support Trash.
+                do {
+                    try fm.removeItem(at: url)
+                } catch {
+                    log(
+                        "ERROR deleting \(show.name): \(error.localizedDescription)",
+                        isError: true)
+                    return
+                }
+            }
+        }
+
+        if let appleURL = show.appleURL {
+            feeds.removeAll { $0 == appleURL }
+        }
+        feedInfoByShowName.removeValue(forKey: show.name)
+        scanPodcastFiles()
+    }
+
     // MARK: - File Scanning
 
     func scanPodcastFiles() {

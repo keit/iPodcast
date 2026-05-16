@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var manager = PodcastManager()
     @State private var showingManageFeeds = false
     @State private var showingMoreFor: PodcastShow?
+    @State private var unsubscribeTarget: PodcastShow?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -132,6 +133,16 @@ struct ContentView: View {
                                     }
                                     .buttonStyle(.borderless)
                                 }
+                                Button {
+                                    unsubscribeTarget = show
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.headline)
+                                        .fontWeight(.regular)
+                                        .foregroundStyle(.primary)
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Delete show and unsubscribe")
                             }
                         }
                     }
@@ -189,6 +200,23 @@ struct ContentView: View {
         }
         .sheet(item: $showingMoreFor) { show in
             ShowEpisodesView(manager: manager, show: show)
+        }
+        .confirmationDialog(
+            "Delete \(unsubscribeTarget?.name ?? "")?",
+            isPresented: Binding(
+                get: { unsubscribeTarget != nil },
+                set: { if !$0 { unsubscribeTarget = nil } }
+            ),
+            presenting: unsubscribeTarget
+        ) { show in
+            Button("Delete", role: .destructive) {
+                manager.unsubscribeShow(show)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: { show in
+            Text(
+                "The show folder and its episodes will be deleted from the iPod, and the feed removed from your subscriptions."
+            )
         }
     }
 }
