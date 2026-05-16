@@ -46,8 +46,13 @@ final class PodcastManager {
     var isSyncing = false
     var isCleaning = false
 
-    var iPodMountPoint = "/Volumes/IPOD"
-    var episodeLimit = 5
+    var iPodMountPoint: String {
+        didSet { UserDefaults.standard.set(iPodMountPoint, forKey: Self.iPodMountPointKey) }
+    }
+
+    var episodeLimit: Int {
+        didSet { UserDefaults.standard.set(episodeLimit, forKey: Self.episodeLimitKey) }
+    }
 
     var feeds: [String] {
         didSet { UserDefaults.standard.set(feeds, forKey: Self.feedsKey) }
@@ -56,6 +61,8 @@ final class PodcastManager {
     private var feedInfoByShowName: [String: FeedInfo] = [:]
 
     private static let feedsKey = "feeds"
+    private static let iPodMountPointKey = "iPodMountPoint"
+    private static let episodeLimitKey = "episodeLimit"
 
     static let defaultFeeds = [
         "https://podcasts.apple.com/us/podcast/the-10-minute-jazz-lesson-podcast/id1087454803",
@@ -74,10 +81,21 @@ final class PodcastManager {
     var isBusy: Bool { isSyncing || isCleaning }
 
     init() {
-        if let saved = UserDefaults.standard.stringArray(forKey: Self.feedsKey), !saved.isEmpty {
+        let defaults = UserDefaults.standard
+
+        if let saved = defaults.stringArray(forKey: Self.feedsKey), !saved.isEmpty {
             self.feeds = saved
         } else {
             self.feeds = Self.defaultFeeds
+        }
+
+        self.iPodMountPoint =
+            defaults.string(forKey: Self.iPodMountPointKey) ?? "/Volumes/IPOD"
+
+        if defaults.object(forKey: Self.episodeLimitKey) != nil {
+            self.episodeLimit = defaults.integer(forKey: Self.episodeLimitKey)
+        } else {
+            self.episodeLimit = 5
         }
     }
 
