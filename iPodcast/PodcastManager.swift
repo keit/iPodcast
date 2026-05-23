@@ -312,14 +312,14 @@ final class PodcastManager {
         log("Reading Rockbox database at \(iPodMountPoint)...")
 
         do {
-            let files = try PlaybackLog.findFullyListened(mountPoint: iPodMountPoint)
+            let files = try PlaybackLog.findPlayed(mountPoint: iPodMountPoint)
 
             if files.isEmpty {
-                log("No fully-listened podcast files found.")
+                log("No played podcast files found.")
                 return
             }
 
-            log("Found \(files.count) fully-listened file(s):\n")
+            log("Found \(files.count) played file(s):\n")
             for file in files {
                 log("  \(file)")
             }

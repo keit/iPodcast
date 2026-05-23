@@ -1,11 +1,11 @@
 import Foundation
 
 enum PlaybackLog {
-    private static let fullyPlayedThreshold = 0.90
-
-    /// Find fully-listened podcast files by parsing .rockbox/playback.log.
+    /// Find played podcast files by parsing .rockbox/playback.log.
+    /// Any entry under the Podcasts directory counts as played, matching the
+    /// "green checkmark" semantics used elsewhere in the UI.
     /// Log format: timestamp:elapsed:length:/path/to/file (all times in ms)
-    static func findFullyListened(mountPoint: String) throws -> [String] {
+    static func findPlayed(mountPoint: String) throws -> [String] {
         let logPath = (mountPoint as NSString)
             .appendingPathComponent(".rockbox/playback.log")
 
@@ -17,7 +17,7 @@ enum PlaybackLog {
         let events = parseLog(content)
 
         let podcastsPrefix = (mountPoint as NSString).appendingPathComponent("Podcasts")
-        var fullyPlayed: Set<String> = []
+        var played: Set<String> = []
 
         for event in events {
             // Strip Rockbox drive prefix like /<HDD0>/
@@ -32,14 +32,11 @@ enum PlaybackLog {
 
             guard fullPath.hasPrefix(podcastsPrefix) else { continue }
             guard FileManager.default.fileExists(atPath: fullPath) else { continue }
-            guard event.length > 0 else { continue }
 
-            if Double(event.elapsed) / Double(event.length) >= fullyPlayedThreshold {
-                fullyPlayed.insert(fullPath)
-            }
+            played.insert(fullPath)
         }
 
-        return fullyPlayed.sorted()
+        return played.sorted()
     }
 
     private struct Event {
